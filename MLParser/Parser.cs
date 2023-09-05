@@ -1,60 +1,52 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using CsvHelper;
 using MLParser.Interface;
 using MLParser.Types;
 
-namespace MLParser
+namespace MLParser;
+
+public class Parser
 {
-    public class Parser
+    private IRowParser _rowParser = null;
+
+    public Parser(IRowParser rowParser)
     {
-        private IRowParser _rowParser = null;
+        _rowParser = rowParser;
+    }
 
-        public Parser(IRowParser rowParser)
+    /// <summary>
+    /// Parses a csv file containing inputs and an output label, returning a list of MLData.
+    /// </summary>
+    /// <param name="path">string</param>
+    /// <param name="maxRows">int - max number of rows to read</param>
+    /// <returns>List of MLData</returns>
+    public List<MLData> Parse(string path, int maxRows = 0)
+    {
+        var dataList = new List<MLData>();
+
+        using (var f = new FileStream(path, FileMode.Open))
         {
-            _rowParser = rowParser;
-        }
+            using var streamReader = new StreamReader(f, Encoding.GetEncoding(1252));
+            using var csvReader = new CsvReader(streamReader);
+            csvReader.Configuration.HasHeaderRecord = false;
 
-        /// <summary>
-        /// Parses a csv file containing inputs and an output label, returning a list of MLData.
-        /// </summary>
-        /// <param name="path">string</param>
-        /// <param name="maxRows">int - max number of rows to read</param>
-        /// <returns>List of MLData</returns>
-        public List<MLData> Parse(string path, int maxRows = 0)
-        {
-            List<MLData> dataList = new List<MLData>();
-
-            using (FileStream f = new FileStream(path, FileMode.Open))
+            while (csvReader.Read())
             {
-                using (StreamReader streamReader = new StreamReader(f, Encoding.GetEncoding(1252)))
+                var row = new MLData()
                 {
-                    using (CsvReader csvReader = new CsvReader(streamReader))
-                    {
-                        csvReader.Configuration.HasHeaderRecord = false;
+                    Label = _rowParser.ReadLabel(csvReader),
+                    Data = _rowParser.ReadData(csvReader)
+                };
 
-                        while (csvReader.Read())
-                        {
-                            MLData row = new MLData()
-                            {
-                                Label = _rowParser.ReadLabel(csvReader),
-                                Data = _rowParser.ReadData(csvReader)
-                            };
+                dataList.Add(row);
 
-                            dataList.Add(row);
-
-                            if (maxRows > 0 && dataList.Count >= maxRows)
-                                break;
-                        }
-                    }
-                }
+                if (maxRows > 0 && dataList.Count >= maxRows)
+                    break;
             }
-
-            return dataList;
         }
+
+        return dataList;
     }
 }
